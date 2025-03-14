@@ -56,13 +56,13 @@ kubectl create namespace mongodb
 2. Create a ConfigMap for database initialization:
 
 ```bash
-kubectl -n mongodb create configmap init-mongo --from-file ./bitnami-mongo-replica-set/init-mongo.js
+kubectl -n mongodb create configmap init-mongo --from-file ./bitnami_mongo_replica_set/init-mongo.js
 ```
 
 3. Deploy MongoDB using Helm:
 
 ```bash
-helm install mongodb oci://registry-1.docker.io/bitnamicharts/mongodb -f ./bitnami-mongo-replica-set/values.yaml --namespace mongodb --create-namespace
+helm install mongodb oci://registry-1.docker.io/bitnamicharts/mongodb -f ./bitnami_mongo_replica_set/values.yaml --namespace mongodb --create-namespace
 ```
 
 4. Verify MongoDB setup:
@@ -122,7 +122,7 @@ Build and deploy a custom Docker image to generate fake data in MongoDB:
 
 ```bash
 eval $(minikube docker-env)
-docker build -t myimages/python_mongo_generator:latest ./path/to/folder/with/fake_source_pipe
+docker build -t myimages/python_mongo_generator:latest ./fake_source_pipe
 ```
 
 Wait until Docker image is built.
@@ -191,7 +191,7 @@ kubectl port-forward services/flink-jobmanager-rest 8081:8081 --namespace=flink
 Copy the job script to the Job Manager pod:
 
 ```bash
-kubectl -n flink cp ./flink_cluster_high_availability/flink-jobs/users-job.py <job-manager-pod-name>:/tmp/users-job.py;
+kubectl -n flink cp ./flink_cluster_high_availability/flink-job/users-job.py <job-manager-pod-name>:/tmp/users-job.py;
 ```
 
 Run the job:
