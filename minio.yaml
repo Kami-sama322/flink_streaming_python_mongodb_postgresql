@@ -1,0 +1,112 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: minio
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio-service
+  namespace: minio
+spec:
+  type: ClusterIP
+  ports:
+    - name: s3-endpoint
+      port: 9000
+      targetPort: 9000
+      protocol: TCP
+    - name: web-ui
+      port: 9090
+      targetPort: 9090
+      protocol: TCP
+  selector:
+    app: minio
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: minio-pv-claim
+  namespace: minio
+  labels:
+    app: minio-storage-claim
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio-deployment
+  namespace: minio
+spec:
+  selector:
+    matchLabels:
+      app: minio
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+      volumes:
+      - name: storage
+        persistentVolumeClaim:
+          claimName: minio-pv-claim
+      containers:
+      - name: minio
+        image: quay.io/minio/minio:latest
+        args:
+        - server
+        - /storage
+        - --console-address=0.0.0.0:9090
+        readinessProbe:
+          httpGet:
+            path: /minio/health/live
+            port: 9000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        env:
+        - name: MINIO_ROOT_USER
+          value: "minio"
+        - name: MINIO_ROOT_PASSWORD
+          value: "minio123"
+        ports:
+        - containerPort: 9000
+          hostPort: 9000
+        - containerPort: 9090
+          hostPort: 9090
+        volumeMounts:
+        - name: storage
+          mountPath: "/storage"
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-flink-bucket-init
+  namespace: minio
+spec:
+  ttlSecondsAfterFinished: 5
+  template:
+    spec:
+      containers:
+      - name: minio-init-flink-bucket
+        image: minio/mc
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+              until mc alias set myminio http://minio-service:9000 minio minio123; do
+              echo "Waiting for MinIO to be ready...";
+              sleep 4;
+              done;
+              mc mb myminio/apache-flink && echo ">> Bucket created" || echo ">> Bucket already exist"
+        env:
+        - name: MINIO_ROOT_USER
+          value: "minio"
+        - name: MINIO_ROOT_PASSWORD
+          value: "minio123"
+      restartPolicy: OnFailure

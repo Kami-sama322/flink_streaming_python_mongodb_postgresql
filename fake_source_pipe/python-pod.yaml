@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: fake-source
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongo-generator
+  namespace: fake-source
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongo-generator
+  template:
+    metadata:
+      labels:
+        app: mongo-generator
+    spec:
+      containers:
+      - name: mongo-generator
+        image: myimages/python_mongo_generator:latest
+        imagePullPolicy: Never

@@ -1,0 +1,46 @@
+apiVersion: flink.apache.org/v1beta1
+kind: FlinkDeployment
+metadata:
+  name: flink-job
+  namespace: flink-operator
+spec:
+  image: myimages/pyflink-base:latest
+  flinkVersion: v1_18
+  flinkConfiguration:
+    kubernetes.operator.periodic.checkpoint.interval: 10s
+    taskmanager.numberOfTaskSlots: "1"
+    state.savepoints.dir: "s3a://apache-flink/savepoints/users-job"
+    state.checkpoints.dir: "s3a://apache-flink/checkpoints/users-job"
+    state.backend.fs.checkpointdir: s3a://apache-flink/checkpoints
+    state.checkpoint.interval: '1000'  # 10 sec
+    execution.checkpointing.externalized-checkpoint-retention: RETAIN_ON_CANCELLATION
+    fs.s3a.endpoint: http://minio-service.minio.svc.cluster.local:9000
+    fs.s3a.path.style.access: 'true'
+    fs.s3a.access.key: minio
+    fs.s3a.secret.key: minio123
+    kubernetes.operator.savepoint.history.max.age: 24h
+    kubernetes.operator.savepoint.history.max.count: '2'
+  serviceAccount: flink
+  jobManager:
+    resource:
+      memory: "1g"
+      cpu: 1
+  taskManager:
+    resource:
+      memory: "2g"
+      cpu: 1
+  imagePullPolicy: Never
+  podTemplate:
+    spec:
+      containers:
+        - name: flink-main-container
+          env:
+            - name: ENABLE_BUILT_IN_PLUGINS
+              value: "flink-s3-fs-hadoop-1.18.0.jar"
+  job:
+    jarURI: local:///opt/flink/opt/flink-python_2.12-1.18.0.jar
+    entryClass: "org.apache.flink.client.python.PythonDriver"
+    args: ["-pyclientexec", "/usr/local/bin/python3", "-py", "/opt/flink/users-postgres.py"]
+    parallelism: 2
+    upgradeMode: savepoint
+    state: running

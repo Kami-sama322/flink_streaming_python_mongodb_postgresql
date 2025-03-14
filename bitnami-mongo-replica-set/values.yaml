@@ -1,0 +1,12 @@
+architecture: replicaset
+replicaCount: 2
+auth:
+  enabled: false
+persistence:
+  enabled: false
+initdbScriptsConfigMap: init-mongo
+resources:
+  requests:
+    memory: "512Mi"
+  limits:
+    memory: "1Gi"

@@ -1,0 +1,115 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: postgresql
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgresql
+  namespace: postgresql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgresql
+  template:
+    metadata:
+      labels:
+        app: postgresql
+    spec:
+      containers:
+        - name: postgresql
+          image: postgres:latest
+          env:
+            - name: POSTGRES_DB
+              value: "mydb"
+            - name: POSTGRES_USER
+              value: "user"
+            - name: POSTGRES_PASSWORD
+              value: "password"
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - name: init-scripts
+              mountPath: /docker-entrypoint-initdb.d
+      volumes:
+        - name: init-scripts
+          configMap:
+            name: postgres-init
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgresql-clusterip
+  namespace: postgresql
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5432
+      targetPort: 5432
+  selector:
+    app: postgresql
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgresql-nodeport
+  namespace: postgresql
+spec:
+  type: NodePort
+  ports:
+    - port: 5432
+      targetPort: 5432
+      nodePort: 30432
+  selector:
+    app: postgresql
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+  namespace: postgresql
+data:
+  init.sql: |
+    CREATE TABLE IF NOT EXISTS users_postgres
+      (
+        _id text primary key,
+        service text,
+        name text,
+        surname text,
+        age int,
+        is_valid bool,
+        ts TIMESTAMP DEFAULT NOW(),
+        deleted_at TIMESTAMP DEFAULT NULL
+      );
+
+    CREATE OR REPLACE FUNCTION update_ts()
+    RETURNS TRIGGER AS $$
+    BEGIN
+      NEW.ts = now();
+      RETURN NEW;
+    END;
+    $$ language 'plpgsql';
+
+    CREATE TRIGGER update_ts_trigger
+    BEFORE UPDATE ON users_postgres
+    FOR EACH ROW EXECUTE FUNCTION update_ts();
+
+    CREATE OR REPLACE FUNCTION mark_as_deleted()
+    RETURNS TRIGGER AS $$
+    DECLARE
+        query TEXT;
+    BEGIN
+      query := 'UPDATE ' || quote_ident(TG_TABLE_NAME) ||
+                  ' SET deleted_at = NOW() WHERE ctid = $1';
+
+      EXECUTE query USING OLD.ctid;
+
+      RETURN NULL;
+    END;
+    $$ LANGUAGE plpgsql;
+
+    CREATE OR REPLACE TRIGGER trigger_mark_as_deleted
+    BEFORE DELETE ON users_postgres
+    FOR EACH ROW EXECUTE FUNCTION mark_as_deleted();
